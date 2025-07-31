@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DEVARATHA AI Chatbot</title>
+    <!-- Tailwind CSS CDN for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom font for a clean look */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom scrollbar for chat messages */
+        .chat-messages::-webkit-scrollbar {
+            width: 8px;
+        }
+        .chat-messages::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        .chat-messages::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        /* Simple spinner for loading state */
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left-color: #4CAF50;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        /* Styles for modal */
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 1000; /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%; /* Full width */
+            height: 100%; /* Full height */
+            overflow: auto; /* Enable scroll if needed */
+            background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+        }
+        .close-button {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close-button:hover,
+        .close-button:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+
+    <div class="chat-container bg-white rounded-xl shadow-lg flex flex-col w-full max-w-md overflow-hidden">
+        <!-- Chat Header -->
+        <div class="chat-header bg-gradient-to-r from-emerald-500 to-teal-600 text-white p-4 text-center text-xl font-semibold rounded-t-xl flex justify-between items-center">
+            <span class="flex-grow">DEVARATHA AI Chatbot</span>
+            <div class="flex items-center space-x-2">
+                <span id="user-status" class="text-sm text-gray-200">Not Signed In</span>
+                <button id="auth-button" class="bg-emerald-700 hover:bg-emerald-800 text-white text-sm px-3 py-1 rounded-full transition duration-300">Sign In</button>
+            </div>
+        </div>
+
+        <!-- Chat Messages Display Area -->
+        <div id="chat-messages" class="chat-messages flex-1 p-4 overflow-y-auto max-h-96 sm:max-h-[500px] border-b border-gray-200">
+            <!-- Initial bot message -->
+            <div class="message bot-message bg-gray-200 text-gray-800 p-3 rounded-2xl mb-3 max-w-[80%] self-start">
+                Hello! I am DEVARATHA, a Gemini-powered AI. I can answer questions, generate code, generate images, and even help you generate prompts!
+                You can also upload an image and ask me about it.
+            </div>
+            <!-- Loading indicator placeholder -->
+            <div id="loading-indicator" class="hidden message bot-message bg-gray-200 text-gray-800 p-3 rounded-2xl mb-3 max-w-[80%] self-start flex items-center">
+                <div class="spinner mr-2"></div> Thinking...
+            </div>
+        </div>
+
+        <!-- Chat Input Area -->
+        <div class="chat-input-container flex flex-col p-4 bg-white">
+            <!-- File Upload Section -->
+            <div class="flex items-center mb-3">
+                <label for="file-input" class="cursor-pointer bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-2 px-4 rounded-full transition duration-300 ease-in-out">
+                    Upload Image
+                </label>
+                <input type="file" id="file-input" accept="image/*" class="hidden">
+                <span id="file-name" class="ml-3 text-gray-600 truncate max-w-[calc(100%-120px)]">No file chosen</span>
+                <button id="clear-file-button" class="ml-auto text-red-500 hover:text-red-700 hidden text-sm">Clear</button>
+            </div>
+
+            <div class="flex items-center">
+                <!-- Microphone button removed -->
+                <input type="text" id="user-input" placeholder="Ask a question, 'generate image of...', 'generate prompt for...'"
+                       class="flex-1 p-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-emerald-500 mr-3 text-gray-800">
+                <button id="send-button"
+                        class="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-2 px-5 rounded-full shadow-md transition duration-300 ease-in-out transform hover:scale-105 flex-shrink-0">
+                    Send
+                </button>
+                <!-- Speaker button removed -->
+                <!-- <button id="speak-button" class="bg-blue-500 hover:bg-blue-600 text-white p-3 rounded-full shadow-md transition duration-300 ease-in-out transform hover:scale-105 ml-3 flex-shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" class="h-5 w-5 fill-current">
+                        <path d="M301.1 34.8c11.5-6.9 24.6-10.8 37.9-10.8 56.6 0 102.6 46-102.6 102.6 0 13.3-3.9 26.4-10.8 37.9L24.5 421.7c-21.9 21.9-21.9 57.3 0 79.2s57.3 21.9 79.2 0l242.4-242.4c11.5-6.9 24.6-10.8 37.9-10.8 56.6 0 102.6 46 102.6 102.6 0 13.3-3.9 26.4-10.8 37.9L393.3 491.5c-21.9 21.9-21.9 57.3 0 79.2s57.3 21.9 79.2 0L551.5 393.3c21.9-21.9 21.9-57.3 0-79.2s-57.3-21.9-79.2 0L301.1 34.8zM416 192c0-35.3 28.7-64 64-64s64 28.7 64 64-28.7 64-64 64-64-28.7-64-64z"/>
+                    </svg>
+                </button> -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Auth Modal -->
+    <div id="auth-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h3 class="text-xl font-semibold mb-4" id="auth-modal-title">Sign In</h3>
+            <input type="email" id="auth-email" placeholder="Email" class="w-full p-2 border border-gray-300 rounded-md mb-3">
+            <input type="password" id="auth-password" placeholder="Password" class="w-full p-2 border border-gray-300 rounded-md mb-3">
+            <button id="modal-action-button" class="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-2 px-4 rounded-md w-full mb-2">Sign In</button>
+            <button id="toggle-auth-mode" class="text-blue-600 hover:underline text-sm">Don't have an account? Sign Up</button>
+            <p id="auth-error-message" class="text-red-500 text-sm mt-2"></p>
+        </div>
+    </div>
+
+    <script type="module">
+        // Firebase imports
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global variables provided by the Canvas environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app, db, auth;
+        let currentUserId = 'anonymous'; // Default to anonymous
+        let unsubscribeFromChat = null; // To manage Firestore real-time listener
+        let chatHistoryForGemini = []; // To maintain conversation context for the LLM API calls
+
+        // --- Core UI and Utility Functions ---
+
+        /**
+         * Appends a new message (text or image) to the chat display.
+         * @param {string | null} message - The text content of the message, or null if only an image.
+         * @param {'user' | 'bot'} sender - The sender of the message ('user' or 'bot').
+         * @param {string | null} imageUrl - URL or base64 data for an image to display.
+         */
+        function appendMessage(message, sender, imageUrl = null) {
+            const chatMessages = document.getElementById('chat-messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message', 'p-3', 'rounded-2xl', 'mb-3', 'max-w-[80%]');
+
+            if (sender === 'user') {
+                messageDiv.classList.add('bg-blue-500', 'text-white', 'ml-auto'); // User messages on the right
+            } else {
+                messageDiv.classList.add('bg-gray-200', 'text-gray-800', 'mr-auto'); // Bot messages on the left
+            }
+
+            if (imageUrl) {
+                const imgElement = document.createElement('img');
+                imgElement.src = imageUrl;
+                imgElement.classList.add('max-w-full', 'h-auto', 'rounded-lg', 'mt-2');
+                imgElement.onerror = () => {
+                    // Fallback for broken image links
+                    imgElement.src = `https://placehold.co/150x100/CCCCCC/333333?text=Image+Load+Error`;
+                    imgElement.alt = "Image failed to load";
+                };
+                messageDiv.appendChild(imgElement);
+            }
+
+            if (message) {
+                // Convert markdown code blocks to HTML pre/code for better display
+                const formattedMessage = message.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
+                    const language = lang || 'plaintext';
+                    return `<pre class="bg-gray-700 text-white p-2 rounded-md mt-2 overflow-auto"><code class="language-${language}">${escapeHtml(code)}</code></pre>`;
+                });
+                const textNode = document.createElement('div');
+                textNode.innerHTML = formattedMessage; // Use innerHTML for markdown conversion
+                messageDiv.appendChild(textNode);
+            }
+
+            chatMessages.appendChild(messageDiv);
+
+            // Scroll to the bottom of the chat to show the latest message
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        /**
+         * Escapes HTML characters to prevent XSS.
+         * @param {string} text - The text to escape.
+         * @returns {string} - The escaped text.
+         */
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+        }
+
+        /**
+         * Shows the loading indicator.
+         * @param {HTMLElement} loadingIndicator - The loading indicator DOM element.
+         * @param {HTMLElement} chatMessages - The chat messages container DOM element.
+         */
+        function showLoading(loadingIndicator, chatMessages) {
+            loadingIndicator.classList.remove('hidden');
+            chatMessages.scrollTop = chatMessages.scrollHeight; // Scroll to show indicator
+        }
+
+        /**
+         * Hides the loading indicator.
+         * @param {HTMLElement} loadingIndicator - The loading indicator DOM element.
+         */
+        function hideLoading(loadingIndicator) {
+            loadingIndicator.classList.add('hidden');
+        }
+
+        /**
+         * Utility function for exponential backoff retry logic.
+         * @param {Function} fn - The function to retry.
+         * @param {number} retries - Number of retries.
+         * @param {number} delay - Initial delay in ms.
+         */
+        async function exponentialBackoffFetch(fn, retries = 3, delay = 1000) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    return await fn();
+                } catch (error) {
+                    if (i === retries - 1) throw error; // Re-throw if last retry
+                    await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
+                }
+            }
+        }
+
+        // Text-to-Speech API setup (removed)
+        // const synth = window.speechSynthesis;
+        // let currentUtterance = null;
+        // function speakText(text) { ... }
+
+        // --- Authentication Helper Functions ---
+        function updateUserStatus(statusText) {
+            const userStatus = document.getElementById('user-status');
+            const authButton = document.getElementById('auth-button');
+            userStatus.textContent = statusText;
+            if (statusText === 'Not Signed In') {
+                authButton.textContent = 'Sign In';
+            } else {
+                authButton.textContent = 'Sign Out';
+            }
+        }
+
+        function setAuthMode(signInMode) {
+            const authModalTitle = document.getElementById('auth-modal-title');
+            const modalActionButton = document.getElementById('modal-action-button');
+            const toggleAuthModeButton = document.getElementById('toggle-auth-mode');
+            const authErrorMessage = document.getElementById('auth-error-message');
+
+            // This variable needs to be managed locally or passed, as it's not global
+            let isSignInModeLocal = signInMode;
+
+            if (isSignInModeLocal) {
+                authModalTitle.textContent = 'Sign In';
+                modalActionButton.textContent = 'Sign In';
+                toggleAuthModeButton.textContent = "Don't have an account? Sign Up";
+            } else {
+                authModalTitle.textContent = 'Sign Up';
+                modalActionButton.textContent = 'Sign Up';
+                toggleAuthModeButton.textContent = "Already have an account? Sign In";
+            }
+            authErrorMessage.textContent = ''; // Clear error on mode switch
+            return isSignInModeLocal; // Return the updated mode
+        }
+
+        // --- Chat History (Firestore Integration) Helper Functions ---
+        function getChatCollectionRef(uid) {
+            return collection(db, `artifacts/${appId}/users/${uid}/chats`);
+        }
+
+        function clearChatHistory() {
+            const chatMessages = document.getElementById('chat-messages');
+            chatMessages.innerHTML = `
+                <div class="message bot-message bg-gray-200 text-gray-800 p-3 rounded-2xl mb-3 max-w-[80%] self-start">
+                    Hello! I am DEVARATHA, a Gemini-powered AI. I can answer questions, generate code, generate images, and even help you generate prompts!
+                    You can also upload an image and ask me about it.
+                </div>
+            `;
+            chatHistoryForGemini = []; // Clear history for Gemini API as well
+        }
+
+        function loadChatHistory(uid) {
+            if (unsubscribeFromChat) {
+                unsubscribeFromChat(); // Stop previous listener
+            }
+            clearChatHistory(); // Clear UI before loading new history
+
+            const q = query(getChatCollectionRef(uid), orderBy('timestamp', 'asc'));
+
+            unsubscribeFromChat = onSnapshot(q, (snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    const messageData = change.doc.data();
+                    // Only add if it's a new message or a modification
+                    if (change.type === "added" || change.type === "modified") {
+                        // Check if message already exists in UI to prevent duplicates from onSnapshot re-runs
+                        // This is a simple check, for complex apps, a unique message ID would be better
+                        const existingMessages = Array.from(document.getElementById('chat-messages').children).map(el => el.textContent);
+                        if (!existingMessages.includes(messageData.text)) {
+                            appendMessage(messageData.text, messageData.sender, messageData.imageUrl);
+                            // Rebuild chatHistoryForGemini to ensure it's in sync and ordered
+                            // This part ensures the Gemini API gets the correct context.
+                            chatHistoryForGemini = [];
+                            snapshot.docs.forEach(doc => {
+                                const msg = doc.data();
+                                const parts = [{ text: msg.text }];
+                                if (msg.imageUrl) {
+                                    parts.push({ inlineData: { mimeType: "image/png", data: msg.imageUrl.split(',')[1] } });
+                                }
+                                chatHistoryForGemini.push({
+                                    role: msg.sender === 'user' ? 'user' : 'model',
+                                    parts: parts
+                                });
+                            });
+                        }
+                    }
+                });
+            }, (error) => {
+                console.error("Error listening to chat history:", error);
+                appendMessage("Error loading chat history.", "bot");
+            });
+        }
+
+        async function saveMessageToFirestore(text, sender, imageUrl = null) {
+            if (currentUserId === 'anonymous') {
+                console.warn("Cannot save chat history for anonymous user.");
+                return;
+            }
+            try {
+                await addDoc(getChatCollectionRef(currentUserId), {
+                    text: text,
+                    sender: sender,
+                    imageUrl: imageUrl, // Store base64 or URL if an image was part of the message
+                    timestamp: serverTimestamp()
+                });
+            } catch (e) {
+                console.error("Error adding document: ", e);
+            }
+        }
+
+        // --- Gemini API Calls ---
+        /**
+         * Calls the Gemini API for text generation or image understanding.
+         * @param {string} prompt - The user's text prompt.
+         * @param {string | null} imageBase64 - Base64 image data for multimodal input.
+         * @returns {Promise<string>} - The AI's text response.
+         */
+        async function callGeminiTextOrVisionAPI(prompt, imageBase64 = null) {
+            const apiKey = ""; // Canvas will automatically provide this in runtime
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+            console.log("DEBUG: API Key being used (should be populated by runtime):", apiKey ? "******" : "[EMPTY/NOT POPULATED]");
+            console.log("DEBUG: API URL being called:", apiUrl);
+
+            const parts = [];
+            if (prompt) {
+                parts.push({ text: prompt });
+            }
+            if (imageBase64) {
+                parts.push({
+                    inlineData: {
+                        mimeType: "image/png", // Assuming PNG, adjust if needed
+                        data: imageBase64
+                    }
+                });
+            }
+
+            const payload = { contents: chatHistoryForGemini.concat([{ role: "user", parts: parts }]) };
+
+            const response = await exponentialBackoffFetch(async () => {
+                const res = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    throw new Error(`API error: ${res.status} ${res.statusText} - ${errorText}`);
+                }
+                return res;
+            });
+
+            const result = await response.json();
+            if (result.candidates && result.candidates.length > 0 &&
+                result.candidates[0].content && result.candidates[0].content.parts &&
+                result.candidates[0].content.parts.length > 0) {
+                return result.candidates[0].content.parts[0].text;
+            } else {
+                console.warn("Unexpected API response structure for text/vision:", result);
+                return "I couldn't get a clear response from the AI for your text/image query. Please try again.";
+            }
+        }
+
+        /**
+         * Calls the Gemini API for image generation.
+         * @param {string} prompt - The prompt for image generation.
+         * @returns {Promise<string>} - The base64 encoded image data.
+         */
+        async function callGeminiImageGenerationAPI(prompt) {
+            const apiKey = ""; // Canvas will automatically provide this in runtime
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`;
+
+            console.log("DEBUG: API Key being used (should be populated by runtime):", apiKey ? "******" : "[EMPTY/NOT POPULATED]");
+            console.log("DEBUG: API URL being called:", apiUrl);
+
+            const payload = { instances: { prompt: prompt }, parameters: { "sampleCount": 1} };
+
+            const response = await exponentialBackoffFetch(async () => {
+                const res = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    throw new Error(`API error: ${res.status} ${res.statusText} - ${errorText}`);
+                }
+                return res;
+            });
+
+            const result = await response.json();
+            if (result.predictions && result.predictions.length > 0 && result.predictions[0].bytesBase64Encoded) {
+                return result.predictions[0].bytesBase64Encoded;
+            } else {
+                console.warn("Unexpected API response structure for image generation:", result);
+                throw new Error("Failed to generate image. No image data found.");
+            }
+        }
+
+        // Utility functions for TTS (removed)
+        // function base64ToArrayBuffer(base64) { ... }
+        // function pcmToWav(pcmData, sampleRate) { ... }
+        // function writeString(view, offset, string) { ... }
+
+
+        // --- Initialize Firebase and authenticate ---
+        async function initializeFirebase() {
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                // Initial sign-in with custom token or anonymously
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                // Listen for auth state changes
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        currentUserId = user.uid;
+                        console.log("Firebase initialized. User ID:", currentUserId);
+                        updateUserStatus(user.email || user.uid);
+                        loadChatHistory(currentUserId); // Load history for the authenticated user
+                    } else {
+                        currentUserId = 'anonymous';
+                        console.log("No user signed in.");
+                        updateUserStatus('Not Signed In');
+                        clearChatHistory(); // Clear chat history if no user
+                        if (unsubscribeFromChat) {
+                            unsubscribeFromChat(); // Stop listening to previous chat
+                            unsubscribeFromChat = null;
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error("Error initializing Firebase:", error);
+            }
+        }
+
+
+        // --- DOMContentLoaded for event listeners and UI setup ---
+        document.addEventListener('DOMContentLoaded', () => {
+            // Initialize Firebase inside DOMContentLoaded to ensure DOM elements are ready
+            initializeFirebase();
+
+            const userInput = document.getElementById('user-input');
+            const sendButton = document.getElementById('send-button');
+            const fileInput = document.getElementById('file-input');
+            const fileNameSpan = document.getElementById('file-name');
+            const clearFileButton = document.getElementById('clear-file-button');
+            // const speakButton = document.getElementById('speak-button'); // Removed speak button
+            const authButton = document.getElementById('auth-button');
+            const authModal = document.getElementById('auth-modal');
+            const authModalTitle = document.getElementById('auth-modal-title');
+            const authEmail = document.getElementById('auth-email');
+            const authPassword = document.getElementById('auth-password');
+            const modalActionButton = document.getElementById('modal-action-button');
+            const toggleAuthModeButton = document.getElementById('toggle-auth-mode');
+            const authErrorMessage = document.getElementById('auth-error-message');
+            const closeModalButton = authModal.querySelector('.close-button');
+
+            // Get references to loading indicator and chat messages container
+            const loadingIndicator = document.getElementById('loading-indicator');
+            const chatMessages = document.getElementById('chat-messages');
+
+            // Stores the base64 of the uploaded image
+            // This is reset after each use to ensure it's only sent with the intended query.
+            let uploadedImageBase64 = null;
+
+            // --- Authentication Modal Logic ---
+            let isSignInMode = true; // true for Sign In, false for Sign Up (local to DOMContentLoaded)
+
+            authButton.addEventListener('click', () => {
+                if (auth.currentUser && !auth.currentUser.isAnonymous) {
+                    // If already signed in, show sign out option
+                    signOut(auth).then(() => {
+                        console.log("User signed out.");
+                        authErrorMessage.textContent = '';
+                        authModal.style.display = 'none';
+                    }).catch((error) => {
+                        console.error("Error signing out:", error);
+                        authErrorMessage.textContent = `Sign out failed: ${error.message}`;
+                    });
+                } else {
+                    // Show modal for sign in/up
+                    authModal.style.display = 'flex';
+                    authErrorMessage.textContent = '';
+                    isSignInMode = setAuthMode(true); // Default to sign in mode
+                }
+            });
+
+            closeModalButton.addEventListener('click', () => {
+                authModal.style.display = 'none';
+                authErrorMessage.textContent = '';
+            });
+
+            window.addEventListener('click', (event) => {
+                if (event.target === authModal) {
+                    authModal.style.display = 'none';
+                    authErrorMessage.textContent = '';
+                }
+            });
+
+            toggleAuthModeButton.addEventListener('click', () => {
+                isSignInMode = setAuthMode(!isSignInMode); // Toggle mode
+            });
+
+            modalActionButton.addEventListener('click', async () => {
+                const email = authEmail.value;
+                const password = authPassword.value;
+                authErrorMessage.textContent = '';
+
+                if (!email || !password) {
+                    authErrorMessage.textContent = 'Please enter email and password.';
+                    return;
+                }
+
+                try {
+                    if (isSignInMode) {
+                        await signInWithEmailAndPassword(auth, email, password);
+                        console.log("User signed in with email:", email);
+                    } else {
+                        await createUserWithEmailAndPassword(auth, email, password);
+                        console.log("User signed up with email:", email);
+                    }
+                    authModal.style.display = 'none'; // Close modal on success
+                    authEmail.value = '';
+                    authPassword.value = '';
+                } catch (error) {
+                    console.error("Auth error:", error);
+                    authErrorMessage.textContent = `Error: ${error.message}`;
+                }
+            });
+
+
+            /**
+             * Handles file input change event. Reads the image file and displays it.
+             */
+            fileInput.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    fileNameSpan.textContent = file.name;
+                    clearFileButton.classList.remove('hidden');
+
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        uploadedImageBase64 = e.target.result.split(',')[1]; // Get base64 data
+                        // Optionally display the uploaded image in the chat immediately
+                        // appendMessage(null, 'user', e.target.result);
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    fileNameSpan.textContent = 'No file chosen';
+                    clearFileButton.classList.add('hidden');
+                    uploadedImageBase64 = null;
+                }
+            });
+
+            /**
+             * Clears the selected file.
+             */
+            clearFileButton.addEventListener('click', () => {
+                fileInput.value = ''; // Clear the file input
+                fileNameSpan.textContent = 'No file chosen';
+                clearFileButton.classList.add('hidden');
+                uploadedImageBase64 = null;
+            });
+
+
+            /**
+             * Handles sending a message (text, image understanding, image generation, or prompt generation).
+             */
+            async function sendMessage() {
+                const message = userInput.value.trim();
+                const lowerCaseMessage = message.toLowerCase();
+                const isImageGenerationRequest = lowerCaseMessage.startsWith('generate image of');
+                const isPromptGenerationRequest = lowerCaseMessage.startsWith('generate prompt for');
+
+
+                if (!message && !uploadedImageBase64) return; // Do not send empty messages or no file
+
+                // Display user's input (text and/or image)
+                appendMessage(message || (uploadedImageBase64 ? 'Image uploaded' : ''), 'user', uploadedImageBase64 ? `data:image/png;base64,${uploadedImageBase64}` : null);
+                saveMessageToFirestore(message || (uploadedImageBase64 ? 'Image uploaded' : ''), 'user', uploadedImageBase64 ? `data:image/png;base64,${uploadedImageBase64}` : null);
+
+
+                userInput.value = ''; // Clear the input field
+                fileNameSpan.textContent = 'No file chosen'; // Clear file name
+                clearFileButton.classList.add('hidden');
+                fileInput.value = ''; // Clear file input
+                const currentUploadedImage = uploadedImageBase64; // Capture for current turn
+                uploadedImageBase64 = null; // Reset for next turn
+
+                showLoading(loadingIndicator, chatMessages); // Pass elements to showLoading
+
+                try {
+                    let botResponseText = '';
+                    let botResponseImageUrl = null;
+
+                    if (isPromptGenerationRequest) {
+                        const promptTopic = message.substring('generate prompt for'.length).trim();
+                        const promptInstruction = `Generate a detailed and creative prompt for an AI model based on the following topic: "${promptTopic}". The prompt should be suitable for generating images or creative text, including specific details, style, and mood.`;
+                        botResponseText = `Here's a prompt for "${promptTopic}":\n\n"${await callGeminiTextOrVisionAPI(promptInstruction)}"`;
+                    }
+                    else if (isImageGenerationRequest) {
+                        const imagePrompt = message.substring('generate image of'.length).trim();
+                        botResponseImageUrl = `data:image/png;base64,${await callGeminiImageGenerationAPI(imagePrompt)}`;
+                        botResponseText = `Here is your image based on "${imagePrompt}":`;
+                    } else if (currentUploadedImage) {
+                        const prompt = message || "Describe this image."; // If no text, ask to describe
+                        botResponseText = await callGeminiTextOrVisionAPI(prompt, currentUploadedImage);
+                    } else {
+                        botResponseText = await callGeminiTextOrVisionAPI(message);
+                    }
+
+                    appendMessage(botResponseText, 'bot', botResponseImageUrl);
+                    saveMessageToFirestore(botResponseText, 'bot', botResponseImageUrl);
+
+                    // Speak the bot's response (removed)
+                    // speakText(botResponseText);
+
+                } catch (error) {
+                    console.error('Error in AI interaction:', error);
+                    const errorMessage = 'Oops! I encountered an error. Please try again later. Error: ' + error.message;
+                    appendMessage(errorMessage, 'bot');
+                    saveMessageToFirestore(errorMessage, 'bot');
+                    // speakText(errorMessage); // Removed speakText call
+                } finally {
+                    hideLoading(loadingIndicator); // Pass element to hideLoading
+                }
+            }
+
+            // Event listeners
+            // speakButton.addEventListener('click', () => { ... }); // Removed speak button event listener
+
+            sendButton.addEventListener('click', sendMessage);
+
+            userInput.addEventListener('keypress', (event) => {
+                if (event.key === 'Enter') {
+                    sendMessage();
+                }
+            });
+        });
+    </script>
+</body>
+</html>
+
